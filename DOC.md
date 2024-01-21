@@ -1,0 +1,3 @@
+# First Steps, 22.01.2024
+I create a simple pygame-loop with black background. For the behavior of the charges I define a class with charge, position, velocity and acceleration. The class has an update method, that uses Newtons law and the Loretz-Force (MARK to future me: use relativistic mechanics). My goal now is to implement a charge, that follows the cursor. Then I will try to calculate its electric field. I think thats a big challenge, cause I dont exactly know how to handle a Vectorfield in python.
+Result for today: A circle at the position of the cursor and a lovely green charge that is oszillating in a constant magnetic field.
