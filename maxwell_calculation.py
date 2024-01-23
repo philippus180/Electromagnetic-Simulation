@@ -1,5 +1,8 @@
 import numpy as np
 
+BLUE = (0,0,255)
+RED = (255,0,0)
+
 class Charge():
     def __init__(self, charge=1, mass=1, init_position=np.zeros(3), init_velocity=np.zeros(3)) -> None:
         self.charge = charge
@@ -51,11 +54,23 @@ class Fieldwave():
     
 
 class BliBlaBlubb():
-    def __init__(self) -> None:
-        self.E = None
-        self.B = None
+    def __init__(self, width, height) -> None:
+        self.E = np.zeros((width, height))
+        self.B = np.zeros((width, height))
         self.charges = None
 
 
+    def E_field_in_color(self, color_positive=BLUE, color_negative=RED, saturation_point=1, x_range='full', y_range='full'):
+        color_field = np.empty_like(self.E)
+        E_field = self.E / saturation_point
+
+        color_field[np.where(E_field >= 1)] = color_positive
+        color_field[np.where(E_field <= -1)] = color_negative
+        ## need to round the color to int
+        small_positive = np.where(E_field < 1 and E_field >=0)
+        color_field[small_positive] = E_field[small_positive].reshape(len(small_positive), 1) @ np.array(color_positive).reshape(1,3)
+        small_negative = np.where(E_field > -1 and E_field < 0)
+        color_field[small_negative] = E_field[small_negative].reshape(len(small_negative), 1) @ np.array(color_negative).reshape(1,3)
+        
     
 

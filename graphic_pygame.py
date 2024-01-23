@@ -27,8 +27,10 @@ electric_field_colors = np.ones((WIDTH, HEIGHT, 3), dtype=np.uint8)
 
 print(electric_field_colors)
 print(np.array([1,2,3]).shape)
-print(np.array([[1],[5]]) @ np.array([1,0,1,1]).reshape(1,4))
+print(round(np.array([[1.2],[5]]) @ np.array([1,0,3,5]).reshape(1,4)))
 electric_field_colors[200:300,200:455] =  np.linspace(0,127,255).reshape(255,1) @ np.array([2,1,0]).reshape(1,3)
+
+
 
 # Main game loop
 running = True
