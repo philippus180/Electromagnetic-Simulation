@@ -1,6 +1,6 @@
 import pygame
 import numpy as np
-from maxwell_calculation import Charge
+from maxwell_calculation import Charge, BliBlaBlubb
 
 # Initialize Pygame
 pygame.init()
@@ -17,19 +17,23 @@ green = (21, 176, 26)
 
 
 # Set up physics
-time_step = 0.01
+time_step = 0.001
 
-mouse_charge = Charge(1)
-test_charge = Charge(0.2, init_position=np.array([300.,300.,0.]), init_velocity=np.array([0,10.,0]))
+mouse_charge = Charge(-10)
+test_charge = Charge(1, init_position=np.array([300.,300.,0.]))
 
 electric_field_surface = pygame.Surface((WIDTH, HEIGHT))
 electric_field_colors = np.ones((WIDTH, HEIGHT, 3), dtype=np.uint8)
 
+baum = BliBlaBlubb(WIDTH, HEIGHT, (-10, 10), (-10, 10))
+
 print(electric_field_colors)
 print(np.array([1,2,3]).shape)
-print(round(np.array([[1.2],[5]]) @ np.array([1,0,3,5]).reshape(1,4)))
+print((np.array([[1.2],[5]]) @ np.array([1,0,3,5]).reshape(1,4)).round())
 electric_field_colors[200:300,200:455] =  np.linspace(0,127,255).reshape(255,1) @ np.array([2,1,0]).reshape(1,3)
 
+baum.set_test_e_field(mouse_charge.charge, mouse_charge.position)
+electric_field_colors = baum.E_field_in_color(saturation_point=1)
 
 
 # Main game loop
@@ -46,7 +50,13 @@ while running:
 
     ### UPDATE PHYSICS ###
     mouse_charge.set_update(time_step, np.array([mouse_x, mouse_y, 0]))
-    test_charge.update(time_step,1,1)
+    test_charge.update(time_step,baum.E,1)
+
+    
+    baum.set_test_e_field(mouse_charge.charge, mouse_charge.position)
+    electric_field_colors = baum.E_field_in_color(saturation_point=1)
+
+
     pygame.surfarray.blit_array(electric_field_surface, electric_field_colors)
 
     # Fill the screen with black
