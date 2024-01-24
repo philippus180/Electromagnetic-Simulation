@@ -3,6 +3,13 @@ import numpy as np
 BLUE = (0,0,255)
 RED = (255,0,0)
 
+
+def vectorfield_dot_product(vector_field, other_vector_field):
+        return np.sum(vector_field * other_vector_field, axis=-1)
+        
+def vectorfield_scalar_product(vector_field, scalar_field):
+    return vector_field * scalar_field[:,:,np.newaxis]
+
 class Charge():
     def __init__(self, charge=1, mass=1, init_position=np.zeros(3), init_velocity=np.zeros(3)) -> None:
         self.charge = charge
@@ -82,19 +89,18 @@ class Field_Area():
         self.charges = None
 
 
-    def index_to_coordinates(self, index):
-        return np.array([self.x_min + index[0]*self.pixel_size[0], self.y_max - index[1]*self.pixel_size[1], np.zeros_like(index[0])])
-    
+    def position_at_index(self, index):
+        print(index)
+        return self.position[index]
+
+
     def set_test_e_field(self, charge, charge_idx):
-        positions = self.index_to_coordinates(self.E_indices)
-        charge_pos = self.index_to_coordinates(charge_idx)
-
-        print(positions[0,0])
+        charge_pos = self.position_at_index(charge_idx)
 
 
+        vec_to_q = self.position - charge_pos
 
-        vec_to_q = positions - charge_pos[np.newaxis, np.newaxis,:]
-        self.E = charge * (vec_to_q) / np.linalg.norm(vec_to_q, axis=2)
+        self.E = charge * vectorfield_scalar_product(vec_to_q, 1 / np.linalg.norm(vec_to_q, axis=2))
 
 
     def E_field_in_color(self, color_positive=RED, color_negative=BLUE, saturation_point=1, x_range='full', y_range='full'):
@@ -123,28 +129,28 @@ class Field_Area():
     
 
 
-a = np.linspace(0,10,6)
-b = np.linspace(0,10,5)
+# a = np.linspace(0,10,6)
+# b = np.linspace(0,10,5)
 
-c = np.tile(a, (5,1))
-d = np.tile(b, (6,1)).T
+# c = np.tile(a, (5,1))
+# d = np.tile(b, (6,1)).T
 
-e = np.stack((c,d,np.zeros_like(c)), axis=-1)
+# e = np.stack((c,d,np.zeros_like(c)), axis=-1)
 
-f = np.array([1,2,3])
+# f = np.array([1,2,3])
 
-print(c)
-print(d)
-print()
-print(e)
+# print(c)
+# print(d)
+# print()
+# print(e)
 
-print('here')
-print(e * f)
+# print('here')
+# print(vector_dot_product(e, e))
 
-print(b.shape)
+# print(b.shape)
 
-# baum = Field_Area(5, 5, (-10, 10), (-10, 10))
+baum = Field_Area(5, 5, (-10, 10), (-10, 10))
 
-# baum.set_test_e_field(1, (2,3))
-# baum.E_field_in_color()
+baum.set_test_e_field(1, (2,3))
+baum.E_field_in_color()
 
