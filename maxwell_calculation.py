@@ -57,25 +57,31 @@ class Fieldwave():
         return self.charge * (velocity_field + acceleration_field)
     
 
-class BliBlaBlubb():
-    def __init__(self, width, height, x_range, y_range) -> None:
-        self.E = np.ones((width, height, 3))
-        i, j = np.indices((width, height), dtype=int)
-        self.E_indices = np.concatenate([i[:, :, np.newaxis], j[:, :, np.newaxis], np.zeros_like(i)[:, :, np.newaxis]], axis=-1)
+class Field_Area():
+    def __init__(self, x_resolution, y_resolution, x_range, y_range) -> None:
+        self.E = np.ones((x_resolution, y_resolution, 3))
+        self.B = np.zeros((x_resolution, y_resolution, 3))
 
-        self.B = np.zeros((width, height, 3))
         self.x_min, self.x_max = x_range
         self.y_min, self.y_max = y_range
+
         self.x_width = self.x_max - self.x_min
         self.y_width = self.y_max - self.y_min
-        self.pixel_size = (self.x_width / (width - 1), self.y_width / (height - 1))
-        self.origin = (width/2, height/2)
+
+        self.pixel_size = (self.x_width / (x_resolution - 1), self.y_width / (y_resolution - 1))
+        self.origin = (x_resolution/2, y_resolution/2)
+
+        x = np.linspace(self.x_min, self.x_max, x_resolution)
+        y = np.linspace(self.y_min, self.y_max, y_resolution)
+        x_grid = np.tile(x, (y_resolution, 1))
+        y_grid = np.tile(y, (x_resolution, 1)).T
+        z_grid = np.zeros_like(x_grid)
+
+        self.position = np.stack((x_grid, y_grid, z_grid), axis=-1)
+
         self.charges = None
 
 
-    def static_electric_field(pos):
-        return np.linalg.norm(pos) ** (-2)
-    
     def index_to_coordinates(self, index):
         return np.array([self.x_min + index[0]*self.pixel_size[0], self.y_max - index[1]*self.pixel_size[1], np.zeros_like(index[0])])
     
@@ -86,34 +92,6 @@ class BliBlaBlubb():
         print(positions[0,0])
 
 
-        # a = np.array([[[1, 1, 1], [0, 0, 0]],
-        #       [[2, 2, 2], [3, 3, 3]]])
-
-        # b = np.array([1, 2, 3])
-
-        # print(b.reshape(1,1,3))
-
-        # # Use broadcasting to add each element of b to the corresponding element in a
-        # result = a + b.reshape(1,1,3)
-
-        # print(result)
-        # print('over here')
-
-        # a = np.array([[[1,1,1], [0,0,0]], 
-        #               [[2,2,2], [3,3,3]]])
-        
-        # b = np.array([1,2,3])
-
-        # # for i in a:
-        # #     for j in i:
-        # #         j += b
-
-        # print(a)
-
-        # print('here')
-        # # print(a - b[:, np.newaxis])
-        # print(b[:, np.newaxis])
-        # print(a - b[np.newaxis,np.newaxis, :])
 
         vec_to_q = positions - charge_pos[np.newaxis, np.newaxis,:]
         self.E = charge * (vec_to_q) / np.linalg.norm(vec_to_q, axis=2)
@@ -145,9 +123,28 @@ class BliBlaBlubb():
     
 
 
+a = np.linspace(0,10,6)
+b = np.linspace(0,10,5)
 
-baum = BliBlaBlubb(5, 5, (-10, 10), (-10, 10))
+c = np.tile(a, (5,1))
+d = np.tile(b, (6,1)).T
 
-baum.set_test_e_field(1, (2,3))
-baum.E_field_in_color()
+e = np.stack((c,d,np.zeros_like(c)), axis=-1)
+
+f = np.array([1,2,3])
+
+print(c)
+print(d)
+print()
+print(e)
+
+print('here')
+print(e * f)
+
+print(b.shape)
+
+# baum = Field_Area(5, 5, (-10, 10), (-10, 10))
+
+# baum.set_test_e_field(1, (2,3))
+# baum.E_field_in_color()
 

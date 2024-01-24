@@ -1,6 +1,6 @@
 import pygame
 import numpy as np
-from maxwell_calculation import Charge, BliBlaBlubb
+from maxwell_calculation import Charge, Field_Area
 
 # Initialize Pygame
 pygame.init()
@@ -25,7 +25,7 @@ test_charge = Charge(1, init_position=np.array([300.,300.,0.]))
 electric_field_surface = pygame.Surface((WIDTH, HEIGHT))
 electric_field_colors = np.ones((WIDTH, HEIGHT, 3), dtype=np.uint8)
 
-baum = BliBlaBlubb(WIDTH, HEIGHT, (-10, 10), (-10, 10))
+baum = Field_Area(WIDTH, HEIGHT, (-10, 10), (-10, 10))
 
 print(electric_field_colors)
 print(np.array([1,2,3]).shape)
