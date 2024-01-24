@@ -1,3 +1,12 @@
-# First Steps, 22.01.2024
+# First Steps, 21.01.2024
 I create a simple pygame-loop with black background. For the behavior of the charges I define a class with charge, position, velocity and acceleration. The class has an update method, that uses Newtons law and the Loretz-Force (MARK to future me: use relativistic mechanics). My goal now is to implement a charge, that follows the cursor. Then I will try to calculate its electric field. I think thats a big challenge, cause I dont exactly know how to handle a Vectorfield in python.
 Result for today: A circle at the position of the cursor and a lovely green charge that is oszillating in a constant magnetic field.
+
+# Next Day, 22.01.2024
+
+
+# Tuesday, 23.01.2024
+I managed to add the magnitude of the electric field and visualize it by shaded color.
+
+# Wednesday, 24.01.2024
+By now, the E-field just contains the magnitude and does not point in any direction. Because of that, the other test charge only accelerates in one direction, no matter where the cursor is. To implement the electric field as a vector field, I set up an array of size n x m x 3. The screen size is n times m pixels, so every pixel gets assigned an E-vector. The coordinate system should have its origin in the middle of the screen. I create an array of the same shape as E, which contains the position vectors. In the process of rewriting the code i got really confused with two different coordinate systems. Not only do they have different dimension, but I also mixed them up when storing the positions of the charges. On top of that I did not understand all the different numpy arrays I created and made a lot of mistakes trying to do the right calculation with the arrays. Finally, I get most of the errors sorted and the electric field pushes the other charge away (if both are positively charged). To see what is going on, I add a grid of little arrows (by now just lines), that visualize the direction (and magnitude) of the electric field. That works out well and I see that there is still an issue with the electric field. The vectors sort of seem to be turned by 90 degree. A weird bug because the x and y axis were switched (at least sometimes). Todays result is quite delightful, you can see the electric field and push around the poor green charge. But still there are no electromagnetic waves.
