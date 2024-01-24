@@ -17,7 +17,7 @@ green = (21, 176, 26)
 
 
 # Set up physics
-time_step = 0.001
+time_step = 0.1
 
 mouse_charge = Charge(-10)
 test_charge = Charge(1, init_position=np.array([300.,300.,0.]))

@@ -19,7 +19,7 @@ class Charge():
         return self.position[2]
 
     def lorentz_force(self, E, B):
-        return self.charge * (E[int(self.x()), int(self.y())] + np.cross(self.velocity, np.array([0,0,0])))
+        return self.charge * (E[int(self.x()), int(self.y()),:] + np.cross(self.velocity, np.array([0,0,0])))
     
 
     def update(self, dt, E, B):
@@ -59,8 +59,11 @@ class Fieldwave():
 
 class BliBlaBlubb():
     def __init__(self, width, height, x_range, y_range) -> None:
-        self.E = np.ones((width, height))
-        self.B = np.zeros((width, height))
+        self.E = np.ones((width, height, 3))
+        i, j = np.indices((width, height), dtype=int)
+        self.E_indices = np.concatenate([i[:, :, np.newaxis], j[:, :, np.newaxis], np.zeros_like(i)[:, :, np.newaxis]], axis=-1)
+
+        self.B = np.zeros((width, height, 3))
         self.x_min, self.x_max = x_range
         self.y_min, self.y_max = y_range
         self.x_width = self.x_max - self.x_min
@@ -74,20 +77,52 @@ class BliBlaBlubb():
         return np.linalg.norm(pos) ** (-2)
     
     def index_to_coordinates(self, index):
-        return self.x_min + index[0]*self.pixel_size[0], self.y_max - index[1]*self.pixel_size[1]
+        return np.array([self.x_min + index[0]*self.pixel_size[0], self.y_max - index[1]*self.pixel_size[1], np.zeros_like(index[0])])
     
     def set_test_e_field(self, charge, charge_idx):
-        indices = np.indices(self.E.shape)
-
-        positions = self.index_to_coordinates(indices)
+        positions = self.index_to_coordinates(self.E_indices)
         charge_pos = self.index_to_coordinates(charge_idx)
 
-        self.E = charge/((positions[0] - charge_pos[0])**2 + (positions[1] - charge_pos[1])**2)
+        print(positions[0,0])
+
+
+        # a = np.array([[[1, 1, 1], [0, 0, 0]],
+        #       [[2, 2, 2], [3, 3, 3]]])
+
+        # b = np.array([1, 2, 3])
+
+        # print(b.reshape(1,1,3))
+
+        # # Use broadcasting to add each element of b to the corresponding element in a
+        # result = a + b.reshape(1,1,3)
+
+        # print(result)
+        # print('over here')
+
+        # a = np.array([[[1,1,1], [0,0,0]], 
+        #               [[2,2,2], [3,3,3]]])
+        
+        # b = np.array([1,2,3])
+
+        # # for i in a:
+        # #     for j in i:
+        # #         j += b
+
+        # print(a)
+
+        # print('here')
+        # # print(a - b[:, np.newaxis])
+        # print(b[:, np.newaxis])
+        # print(a - b[np.newaxis,np.newaxis, :])
+
+        vec_to_q = positions - charge_pos[np.newaxis, np.newaxis,:]
+        self.E = charge * (vec_to_q) / np.linalg.norm(vec_to_q, axis=2)
 
 
     def E_field_in_color(self, color_positive=RED, color_negative=BLUE, saturation_point=1, x_range='full', y_range='full'):
-        color_field = np.zeros((*self.E.shape, 3), dtype=np.uint8)
+        color_field = np.zeros(self.E.shape, dtype=np.uint8)
         E_field = self.E / saturation_point
+        E_field_norm = np.linalg.norm(E_field, axis=2)
 
         # print(np.where(E_field >= 1))
 
@@ -95,15 +130,15 @@ class BliBlaBlubb():
         # print((a>1) &( a<=0))
         # print([*a.shape, 15])
 
-        color_field[E_field >= 1] = color_positive
-        color_field[E_field <= -1] = color_negative
+        color_field[E_field_norm >= 1] = color_positive
+        color_field[E_field_norm <= -1] = color_negative
 
-        small_positive = (E_field < 1) & (E_field >=0)
-        small_E_positive = E_field[np.where(small_positive)]
+        small_positive = (E_field_norm < 1) & (E_field_norm >=0)
+        small_E_positive = E_field_norm[np.where(small_positive)]
         color_field[small_positive] = (small_E_positive.reshape(len(small_E_positive), 1) @ np.array(color_positive).reshape(1,3)).round()
         
-        small_negative = (E_field > -1) & (E_field < 0)
-        small_E_negative = np.abs(E_field[np.where(small_negative)])
+        small_negative = (E_field_norm > -1) & (E_field_norm < 0)
+        small_E_negative = np.abs(E_field_norm[np.where(small_negative)])
         color_field[small_negative] = (small_E_negative.reshape(len(small_E_negative), 1) @ np.array(color_negative).reshape(1,3)).round()
 
         return color_field
@@ -111,8 +146,8 @@ class BliBlaBlubb():
 
 
 
-# baum = BliBlaBlubb(5, 5, (-10, 10), (-10, 10))
+baum = BliBlaBlubb(5, 5, (-10, 10), (-10, 10))
 
-# baum.set_test_e_field()
-# baum.E_field_in_color()
+baum.set_test_e_field(1, (2,3))
+baum.E_field_in_color()
 
