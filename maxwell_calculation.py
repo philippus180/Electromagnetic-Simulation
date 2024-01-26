@@ -147,10 +147,23 @@ class Field_Area():
 
         relevant_points = np.where((r_q_abs <= light_travel_distance[:, np.newaxis, np.newaxis]) & (r_q_abs > light_travel_distance[:, np.newaxis, np.newaxis] -self.SPEED_OF_LIGHT - self.dt))
 
-        print(r_q_abs[relevant_points])
+        # where_rel = np.where(relevant_points)
+        # print(relevant_points)
+        # print(where_rel)
+        # print(where_rel[0])
+        # print(r_q_abs[relevant_points])
+        # print(where_rel[0])
+        # print(r_q_abs[where_rel[0], where_rel[1]])
         # print(beta[relevant_points])
 
-        print((charge.charge * (1 - e_q_dot_beta)**(-3) * ( (e_q_minus_beta) * (1 - beta_squared) / r_q_abs**2 + (e_q_minus_beta * e_q_dot_beta_point - beta_point * (1-e_q_dot_beta)) / r_q_abs[:,:,:,np.newaxis] / self.SPEED_OF_LIGHT ))[relevant_points])
+        beta_thing_pow_3 =  ((1 - e_q_dot_beta[relevant_points])**(-3))[:,np.newaxis]
+        abc =  e_q_minus_beta[relevant_points]
+        c = (1 - beta_squared[relevant_points[0]])[:,:,0]
+        d = (r_q_abs[relevant_points]**2 )[:,np.newaxis]
+        e = e_q_dot_beta_point[relevant_points][:,np.newaxis]
+        f = beta_point[relevant_points[0]][:,0,0,:]
+        h = (1-e_q_dot_beta[relevant_points])[:,np.newaxis]
+        g = (r_q_abs[relevant_points])[:,np.newaxis]
 
         self.E[relevant_points] = charge.charge * (1 - e_q_dot_beta[relevant_points])**(-3) * ( (e_q_minus_beta[relevant_points]) * (1 - beta**2) / r_q_abs[relevant_points]**2 + (e_q_minus_beta[relevant_points] * e_q_dot_beta_point[relevant_points] - beta_point * (1-e_q_dot_beta[relevant_points])) / r_q_abs[relevant_points] / self.SPEED_OF_LIGHT )
 
