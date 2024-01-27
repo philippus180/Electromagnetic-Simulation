@@ -1,5 +1,20 @@
 import numpy as np
 
+
+import time
+
+def time_it(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"{func.__name__} took {execution_time*1000:.3f} μs to execute.")
+        return result
+    return wrapper
+
+
 BLUE = (0,0,255)
 RED = (255,0,0)
 
@@ -17,6 +32,8 @@ def add_vector_to_list(list, vector):
     return np.concatenate((list, vector[np.newaxis,:]))
 
 class Charge():
+    max_length_old = 20
+
     def __init__(self, field: 'Field_Area', charge=1, mass=1, init_position=np.zeros(3), init_velocity=np.zeros(3)) -> None:
         self.charge = charge
         self.mass = mass
@@ -25,22 +42,35 @@ class Charge():
         self.acceleration = np.zeros(3)
         self.field = field
 
-        self.old_positions = np.empty(1)
-        self.old_velocities = np.empty(1)
-        self.old_accelerations = np.empty(1)
+        self.old_positions = np.empty((0,3))
+        self.old_velocities = np.empty((0,3))
+        self.old_accelerations = np.empty((0,3))
 
     def lorentz_force(self):
-        return self.charge * (self.field.E_at_position(self.position) )#+ np.cross(self.velocity, np.array([0,0,0])))
+        return self.charge *  (self.field.E_at_position(self.position) )#+ np.cross(self.velocity, np.array([0,0,0])))
     
     def update(self, dt):
+        self.old_positions = add_vector_to_list(self.old_positions, self.position)
+        self.old_velocities = add_vector_to_list(self.old_velocities, self.velocity)
+        self.old_accelerations = add_vector_to_list(self.old_accelerations, self.acceleration)
+        if len(self.old_positions) > self.max_length_old:
+            self.old_positions = np.delete(self.old_positions, 0, axis=0)
+            self.old_velocities = np.delete(self.old_velocities, 0, axis=0)
+            self.old_accelerations = np.delete(self.old_accelerations, 0, axis=0)
+
         self.acceleration = self.lorentz_force() / self.mass
         self.position += self.velocity * dt
         self.velocity += self.acceleration * dt
 
+    @time_it
     def set_update(self, dt, pos):
         self.old_positions = add_vector_to_list(self.old_positions, self.position)
         self.old_velocities = add_vector_to_list(self.old_velocities, self.velocity)
         self.old_accelerations = add_vector_to_list(self.old_accelerations, self.acceleration)
+        if len(self.old_positions) > self.max_length_old:
+            self.old_positions = np.delete(self.old_positions, 0, axis=0)
+            self.old_velocities = np.delete(self.old_velocities, 0, axis=0)
+            self.old_accelerations = np.delete(self.old_accelerations, 0, axis=0)
         old_pos = self.position
         old_vel = self.velocity
         self.position = pos
@@ -49,7 +79,7 @@ class Charge():
 
 
 class Fieldwave():
-    SPEED_OF_LIGHT = 1
+    SPEED_OF_LIGHT = 10
     def __init__(self, charge, origin, velocity, acceleration) -> None:
         self.charge = charge
         self.origin = origin
@@ -70,10 +100,11 @@ class Fieldwave():
 class Field_Area():
 
     SPEED_OF_LIGHT = 10
-    dt = 0.1
+    dt = 0.05
 
+    @time_it
     def __init__(self, x_resolution, y_resolution, x_range, y_range) -> None:
-        self.E = np.ones((x_resolution, y_resolution, 3))
+        self.E = np.zeros((x_resolution, y_resolution, 3))
         self.B = np.zeros((x_resolution, y_resolution, 3))
 
         self.x_resolution = x_resolution
@@ -97,6 +128,7 @@ class Field_Area():
 
         self.charges = []
 
+    @time_it
     def add_charge(self, **charge_properties):
         new_charge = Charge(self, **charge_properties)
         self.charges.append(new_charge)
@@ -121,8 +153,11 @@ class Field_Area():
     def E_at_position(self, position):
         return self.E[self.index_of_position(position)]
     
-
+    @time_it
     def calculate_e_field(self, charge):
+        if np.size(charge.old_positions) == 0:
+            return
+        
         r_q = np.tile(self.position, (len(charge.old_positions),1,1,1)) - charge.old_positions[:,np.newaxis,np.newaxis,:]
         r_q_abs = np.linalg.norm(r_q, axis=-1)
         e_q = r_q / r_q_abs[:,:,:,np.newaxis]
@@ -165,24 +200,39 @@ class Field_Area():
         h = (1-e_q_dot_beta[relevant_points])[:,np.newaxis]
         g = (r_q_abs[relevant_points])[:,np.newaxis]
 
-        self.E[relevant_points] = charge.charge * (1 - e_q_dot_beta[relevant_points])**(-3) * ( (e_q_minus_beta[relevant_points]) * (1 - beta**2) / r_q_abs[relevant_points]**2 + (e_q_minus_beta[relevant_points] * e_q_dot_beta_point[relevant_points] - beta_point * (1-e_q_dot_beta[relevant_points])) / r_q_abs[relevant_points] / self.SPEED_OF_LIGHT )
+        E = beta_thing_pow_3 * abc * c / d + ((abc * e) - (f * h)) / g  / self.SPEED_OF_LIGHT
 
-        print(light_travel_distance)
-        print(r_q_abs < light_travel_distance[:, np.newaxis, np.newaxis] * 100)
-        print(r_q_abs[np.where(r_q_abs < light_travel_distance[:, np.newaxis, np.newaxis] * 100)])
+        # print(self.E[relevant_points[1:]])
+
+        self.E = np.zeros_like(self.E)
+        self.E[relevant_points[1:]] = charge.charge * E
+        # self.E[relevant_points] = charge.charge * (1 - e_q_dot_beta[relevant_points])**(-3) * ( (e_q_minus_beta[relevant_points]) * (1 - beta**2) / r_q_abs[relevant_points]**2 + (e_q_minus_beta[relevant_points] * e_q_dot_beta_point[relevant_points] - beta_point * (1-e_q_dot_beta[relevant_points])) / r_q_abs[relevant_points] / self.SPEED_OF_LIGHT )
+
+        # print(light_travel_distance)
+        # print(r_q_abs < light_travel_distance[:, np.newaxis, np.newaxis] * 100)
+        # print(r_q_abs[np.where(r_q_abs < light_travel_distance[:, np.newaxis, np.newaxis] * 100)])
     
 
     def set_test_e_field(self, charge, charge_pos):
         vec_to_q = self.position - charge_pos
         self.E = charge * vectorfield_scalarfield_product(vec_to_q, 1 / np.linalg.norm(vec_to_q, axis=2)**2)
 
-
+    @time_it
     def E_field_in_color(self, color_positive=RED, color_negative=BLUE, saturation_point=1, x_range='full', y_range='full'):
         color_field = np.zeros(self.E.shape, dtype=np.uint8)
         E_field = self.E / saturation_point
         E_field_norm = np.linalg.norm(E_field, axis=2)
 
-        return vector_scalarfield_product(BLUE, E_field_norm).round()
+        E_field_to_big = np.where(E_field_norm >= 1)
+        rest = np.where(E_field_norm < 1)
+
+        color_field[E_field_to_big] = BLUE
+        color_field[rest] = (np.tile(BLUE, (E_field_norm[rest].shape[0], 1)) * E_field_norm[rest][:,np.newaxis]).round()
+        
+
+        color_field = np.tile(BLUE, (*E_field_norm.shape, 1)) * np.tanh(E_field_norm)[:,:,np.newaxis]
+
+        return color_field
 
         # print(np.where(E_field >= 1))
 
@@ -213,10 +263,10 @@ class Field_Area():
 
 # e = np.stack((c,d,np.zeros_like(c)), axis=-1)
 
-f = np.array([[1,2,3], [1,1,1]])
-h = np.array([1,2,3])
+# f = np.array([[1,2,3], [1,1,1]])
+# h = np.array([1,2,3])
 
-print(np.tile(f, (2, 1,1)))
+# print(np.tile(f, (2, 1,1)))
 
 # print(c)
 # print(c[1:4,2])
@@ -234,13 +284,17 @@ print(np.tile(f, (2, 1,1)))
 
 # print(b.shape)
 
-baum = Field_Area(5, 5, (-10, 10), (-10, 10))
+if __name__ == '__main__':
 
-test_charge = baum.add_charge()
-test_charge.old_positions = np.array([[1,0,0], [1,1,1], [1,3,1]])
-test_charge.old_velocities = np.array([[0,1,1], [0,2,1], [0,2,1]])
-test_charge.old_accelerations = np.array([[0,10,0], [0,0,0], [0,0,0]])
-baum.calculate_e_field(test_charge)
-# baum.set_test_e_field(1, (0,0,0))
-baum.E_field_in_color()
+    Space = Field_Area(600, 600     , (-10, 10), (-10, 10))
+
+    test_charge = Space.add_charge()
+
+    test_charge.max_length_old = 100
+
+    for i in range(30):
+        print(f'{i+1}. iteration')
+        test_charge.set_update(Space.dt, np.array([0,np.sin(i),0]))
+        Space.calculate_e_field(test_charge)
+        Space.E_field_in_color()
 
