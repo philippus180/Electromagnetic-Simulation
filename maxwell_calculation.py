@@ -149,21 +149,23 @@ class Field_Area():
         elif x_index < 0 and y_index < 0:
             return 0,0
         elif x_index >= self.x_resolution and y_index >= self.y_resolution:
-            return self.x_resolution, self.y_resolution
+            return self.x_resolution -1, self.y_resolution-1
         elif x_index >= self.x_resolution and y_index < 0:
-            return self.x_resolution, 0
+            return self.x_resolution-1, 0
         elif x_index < 0 and y_index >= self.y_resolution:
-            return 0, self.y_resolution
+            return 0, self.y_resolution-1
 
         
         elif x_index < 0:
             return 0, y_index
         elif x_index >= self.x_resolution:
-            return self.y_resolution, y_index
+            return self.y_resolution-1, y_index
         elif y_index < 0: 
             return x_index, 0
         elif y_index >= self.y_resolution:
-            return x_index, self.y_resolution
+            return x_index, self.y_resolution-1
+
+        return 0,0
 
     def index_of_x_position(self, x_value):
         x_index = round((x_value - self.x_min) / self.pixel_size[0])
@@ -171,7 +173,7 @@ class Field_Area():
         if x_index < 0:
             return 0
         if x_index >= self.x_resolution:
-            return self.x_resolution
+            return self.x_resolution - 1
         return x_index
     
     def index_of_y_position(self, y_value):
@@ -180,7 +182,7 @@ class Field_Area():
         if y_index < 0:
             return 0
         if y_index >= self.y_resolution:
-            return self.y_resolution
+            return self.y_resolution - 1
         return y_index
         
     
@@ -196,13 +198,15 @@ class Field_Area():
         
         for old_index, old_position in enumerate(charge.old_positions):
             light_travel_distance = charge.light_travel_distance[old_index]
-            min_range_x = self.index_of_x_position(old_position[0] - light_travel_distance)
-            max_range_x = self.index_of_x_position(old_position[0] + light_travel_distance)
-            min_range_y = self.index_of_y_position(old_position[1] - light_travel_distance)
-            max_range_y = self.index_of_y_position(old_position[1] + light_travel_distance)
+            min_range_x = self.index_of_x_position(old_position[0] - 2*light_travel_distance)
+            max_range_x = self.index_of_x_position(old_position[0] + 2*light_travel_distance)
+            min_range_y = self.index_of_y_position(old_position[1] - 2*light_travel_distance)
+            max_range_y = self.index_of_y_position(old_position[1] + 2*light_travel_distance)
+
+            position = charge.position[np.newaxis,np.newaxis,:]
 
             r_q_part = self.position[min_range_x:max_range_x, min_range_y:max_range_y] # n x n x 3
-            r_q_abs_part = ne.evaluate('sum(r_q_part**2, axis=2)') # n x n 
+            r_q_abs_part = ne.evaluate('sum((r_q_part-position)**2, axis=2)') # n x n 
 
             beta = (charge.old_velocities[old_index] / self.SPEED_OF_LIGHT)[np.newaxis, :] #  1 x 3
             beta_point = (charge.old_accelerations[old_index] / self.SPEED_OF_LIGHT)[np.newaxis, :]  # 1 x 3

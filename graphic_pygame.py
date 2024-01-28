@@ -11,6 +11,13 @@ WIDTH, HEIGHT = (300, 300)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Maxwells Simulation")
 
+# Create a clock object to control the frame rate
+clock = pygame.time.Clock()
+
+# Set the desired FPS
+FPS = 60
+
+
 # Set up colors
 black = (0, 0, 0)
 white = (255, 255, 255)
@@ -136,6 +143,9 @@ while running:
     # Update the display
     pygame.display.flip()
 
+
+    # Cap the frame rate to the desired FPS
+    clock.tick(FPS)
 
 
 # Quit Pygame
