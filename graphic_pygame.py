@@ -109,7 +109,7 @@ while running:
 
 
     # Space.set_test_e_field(mouse_charge.charge, mouse_charge.position)
-    if i%5 == 0:
+    if i%1 == 0:
         Space.calculate_e_field(mouse_charge)
         electric_field_colors = Space.E_field_in_color(saturation_point=0.5)
 
