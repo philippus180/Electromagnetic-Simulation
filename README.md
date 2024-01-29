@@ -1,5 +1,5 @@
 # Electromagnetic Simulation
-Inspired by ThreeBlueOneBrown ([link to video](https://www.youtube.com/watch?v=aXRTczANuIs)) I wanted to create a simulation, that visualises the electromagnetic fields caused by moving charges. To calculate the EM-fieds I need to implement some form of Maxwells Equations and solve them numerically by tiny changes in time.
+Inspired by ThreeBlueOneBrown ([link to video](https://www.youtube.com/watch?v=aXRTczANuIs)) I wanted to create a simulation, that visualises the electromagnetic fields caused by moving charges. To calculate the EM-fieds I implemented some form of Maxwells Equations and solved them numerically by tiny changes in time.
 In the simulation your cursor represents a charged particle, that you can move by moving the mouse. It is very nice to see the influences of the movement on the field and especially the resulting EM-waves.
 
 
