@@ -1,3 +1,9 @@
+Inspired by ThreeBlueOneBrown I want to create a Simulation, that visualises the electromagnetic fields caused by moving charges. To calculate the EM-fieds I need to implement some form of Maxwells Equations and solve them numerically by tiny changes in time. In the simulation your cursor should represent a charged particle, that you can move by moving the mouse. I imagine it to be very cool to see the influences of the movement on the field and especially the resulting EM-waves.
+
+I will use python to calculate the physics. To visualize the fields I choose pygame to begin with, because I have some experience with it. Maybe later I look for a different graphics environment (maybe even matplotlib?).
+
+In the last few weeks, I thougt a lot about this idea and I try to record as much of my thoughts in the development process as possible.
+
 # First Steps, 21.01.2024
 I create a simple pygame-loop with black background. For the behavior of the charges I define a class with charge, position, velocity and acceleration. The class has an update method, that uses Newtons law and the Lorentz-Force (MARK to future me: use relativistic mechanics). My goal now is to implement a charge, that follows the cursor. Then I will try to calculate its electric field. I think thats a big challenge, cause I dont exactly know how to handle a vectorfield in python.
 Result for today: A circle at the position of the cursor and a lovely green charge that is oszillating in a constant magnetic field.

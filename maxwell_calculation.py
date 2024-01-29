@@ -1,22 +1,8 @@
-import numpy as np
-import scipy as sp
-import numexpr as ne
-import dask.array as da
-from multiprocessing import Pool
-import cv2
-
-
 import time
 
-def time_it(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        execution_time = end_time - start_time
-        print(f"{func.__name__} took {execution_time*1000:.3f} μs to execute.")
-        return result
-    return wrapper
+import cv2
+import numexpr as ne
+import numpy as np
 
 
 BLUE = (0,0,255)
@@ -41,10 +27,10 @@ class Charge():
         self.old_velocities = np.tile(init_velocity, (self.max_length_old,1))
         self.old_accelerations = np.tile(self.acceleration, (self.max_length_old,1))
 
-        self.light_travel_distance = np.arange(self.max_length_old, 0, -1) * field.SPEED_OF_LIGHT * field.dt
+        self.light_travel_distance = np.arange(self.max_length_old, 0, -1) * field.speed_of_light * field.dt
 
     def lorentz_force(self):
-        return self.charge *  (self.field.E_at_position(self.position) )#+ np.cross(self.velocity, np.array([0,0,0])))
+        return self.charge * (self.field.E_at_position(self.position) )# + np.cross(self.velocity, self.field.B(self.position)))
     
     def update(self, dt):
         self.old_positions = add_vector_to_list(self.old_positions, self.position)
@@ -76,14 +62,13 @@ class Charge():
 
 
 class Field_Area():
-
-    SPEED_OF_LIGHT = 10
-    dt = 0.05
-    dx = SPEED_OF_LIGHT*dt
-
-    def __init__(self, x_resolution, y_resolution, x_range, y_range) -> None:
+    def __init__(self, x_resolution, y_resolution, x_range, y_range, dt, c) -> None:
         self.E = np.zeros((x_resolution, y_resolution, 3))
         self.B = np.zeros((x_resolution, y_resolution, 3))
+
+        self.speed_of_light = c
+        self.dt = dt
+        self.dx = self.dt * self.speed_of_light
 
         self.x_resolution = x_resolution
         self.y_resolution = y_resolution
@@ -104,7 +89,7 @@ class Field_Area():
 
         self.position = np.stack((y_grid, x_grid, z_grid), axis=-1)
 
-        self.color = np.array(BLUE, dtype=np.uint8)
+        self.color = np.array((40, 150, 240), dtype=np.uint8)
         self.color_field = np.tile(self.color, (self.x_resolution, self.y_resolution, 1))
 
         self.charges = []
@@ -114,9 +99,15 @@ class Field_Area():
         self.charges.append(new_charge)
         return new_charge
 
+    def set_color(self, rgb_color):
+        self.color = np.array(rgb_color, dtype=np.uint8)
+        self.color_field = np.tile(self.color, (self.x_resolution, self.y_resolution, 1))
+        return
+
 
     def position_at_index(self, index):
         return self.position[index]
+    
 
     def index_of_position(self, position):
         x_index = round((position[0] - self.x_min) / self.pixel_size[0])
@@ -176,11 +167,8 @@ class Field_Area():
         self.E *= 0
         
         for old_index, old_position in enumerate(charge.old_positions):
-            # if old_index != 10:
-            #     continue
             light_travel_distance = charge.light_travel_distance[old_index]
 
-            # start_time = time.time()
             min_range_x = self.index_of_x_position(old_position[0] - 1.5*light_travel_distance)
             max_range_x = self.index_of_x_position(old_position[0] + 1.5*light_travel_distance)
             min_range_y = self.index_of_y_position(old_position[1] - 1.5*light_travel_distance)
@@ -194,12 +182,10 @@ class Field_Area():
 
             r_q_abs_part = ne.evaluate('sqrt(r_q_abs_part_1)')
 
-            beta = (charge.old_velocities[old_index] / self.SPEED_OF_LIGHT)[np.newaxis, :] #  1 x 3
-            beta_point = (charge.old_accelerations[old_index] / self.SPEED_OF_LIGHT)[np.newaxis, :]  # 1 x 3
+            beta = (charge.old_velocities[old_index] / self.speed_of_light)[np.newaxis, :] #  1 x 3
+            beta_point = (charge.old_accelerations[old_index] / self.speed_of_light)[np.newaxis, :]  # 1 x 3
 
-            relevant = np.where((r_q_abs_part <= light_travel_distance) & (r_q_abs_part > light_travel_distance - self.SPEED_OF_LIGHT * self.dt)) # m elements
-
-            # print(relevant[0].size)
+            relevant = np.where((r_q_abs_part <= light_travel_distance) & (r_q_abs_part > light_travel_distance - self.speed_of_light * self.dt)) # m elements
 
             if relevant[0].size == 0:
                 continue
@@ -213,13 +199,10 @@ class Field_Area():
             e_q_dot_beta_point = (ne.evaluate('sum(e_q * beta_point, axis=1)'))[:,np.newaxis] # n x 1
             e_q_minus_beta = ne.evaluate('e_q - beta') # m x 3
 
-            E = ne.evaluate('(e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs*speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3)', global_dict={'speed_of_light':self.SPEED_OF_LIGHT})
+            E = ne.evaluate('(e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs*speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3) ', global_dict={'speed_of_light':self.speed_of_light})
             # m x 3
 
-            self.E[min_range_x:max_range_x, min_range_y:max_range_y][relevant] = E
-
-            # end_time = time.time()
-            # print(f'calc took {(end_time - start_time)*1000:.4f} μs')
+            self.E[min_range_x:max_range_x, min_range_y:max_range_y][relevant] = ne.evaluate('charge * E', local_dict={'E':E,'charge':charge.charge})
 
         return
 
@@ -234,7 +217,7 @@ class Field_Area():
 
         E_field_color = ne.evaluate('tanh(E_field_norm**(0.5) / saturation_point)')
 
-        # E_field_color = sp.ndimage.gaussian_filter(E_field_color, 2)
+        # E_field_color = scipy.ndimage.gaussian_filter(E_field_color, 2)
         E_field_color = (cv2.GaussianBlur(E_field_color, (45, 45),0))[:,:,np.newaxis]
 
         color_field = ne.evaluate('color_field*E_field_color', global_dict={'color_field':self.color_field})
@@ -244,7 +227,7 @@ class Field_Area():
 
 if __name__ == '__main__':
 
-    Space = Field_Area(600, 600, (-10, 10), (-10, 10))
+    Space = Field_Area(600, 600, (-10, 10), (-10, 10), 0.05, 10)
 
     test_charge = Space.add_charge()
 
