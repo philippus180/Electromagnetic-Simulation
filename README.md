@@ -11,6 +11,9 @@ pip install numpy
 pip install numexpr
 pip install opencv-python
 ```
+Download the code and extract the zip folder.
+[![Download](https://img.shields.io/badge/download-22aabb)](https://example.com/link)
+
 To start the simulation please run the file 'graphics_pygame.py':
 ```bash
 python graphics_pygame.py
