@@ -1,7 +1,9 @@
 import numpy as np
+import scipy as sp
 import numexpr as ne
 import dask.array as da
 from multiprocessing import Pool
+import cv2
 
 
 import time
@@ -20,15 +22,6 @@ def time_it(func):
 BLUE = (0,0,255)
 RED = (255,0,0)
 
-
-def vectorfield_dot_product(vector_field, other_vector_field):
-        return np.sum(vector_field * other_vector_field, axis=-1)
-        
-def vectorfield_scalarfield_product(vector_field, scalar_field):
-    return vector_field * scalar_field[:,:,np.newaxis]
-
-def vector_scalarfield_product(vector, scalar_field):
-    return np.tile(vector, (*scalar_field.shape, 1)) * scalar_field[:,:,np.newaxis]
 
 def add_vector_to_list(list, vector):
     return np.concatenate((list, vector[np.newaxis,:]))
@@ -81,29 +74,12 @@ class Charge():
         self.acceleration = (self.velocity - old_vel) / dt
 
 
-class Fieldwave():
-    SPEED_OF_LIGHT = 10
-    def __init__(self, charge, origin, velocity, acceleration) -> None:
-        self.charge = charge
-        self.origin = origin
-        self.charge_velocity = velocity / self.SPEED_OF_LIGHT
-        self.charge_acceleration = acceleration / self.SPEED_OF_LIGHT
-        self.radius = 0.1
-
-    def update(self, dt):
-        self.radius += dt*self.SPEED_OF_LIGHT
-
-    def evaluate(self, position):
-        e_q = (position - self.origin) / self.radius
-        velocity_field = (e_q - self.charge_velocity) * (1 - np.linalg.norm(self.charge_velocity)**2) / (1 - np.dot(e_q, self.charge_velocity))**3 / self.radius**2
-        acceleration_field = np.cross(e_q, np.cross(e_q-self.charge_velocity), self.charge_acceleration) / (self.SPEED_OF_LIGHT * self.radius * (1 - np.dot(e_q, self.charge_velocity))**3)
-        return self.charge * (velocity_field + acceleration_field)
-    
 
 class Field_Area():
 
     SPEED_OF_LIGHT = 10
     dt = 0.05
+    dx = SPEED_OF_LIGHT*dt
 
     def __init__(self, x_resolution, y_resolution, x_range, y_range) -> None:
         self.E = np.zeros((x_resolution, y_resolution, 3))
@@ -127,6 +103,9 @@ class Field_Area():
         z_grid = np.zeros_like(x_grid)
 
         self.position = np.stack((y_grid, x_grid, z_grid), axis=-1)
+
+        self.color = np.array(BLUE, dtype=np.uint8)
+        self.color_field = np.tile(self.color, (self.x_resolution, self.y_resolution, 1))
 
         self.charges = []
 
@@ -189,7 +168,7 @@ class Field_Area():
     def E_at_position(self, position):
         return self.E[self.index_of_position(position)]
     
-    @time_it
+
     def calculate_e_field(self, charge):
         if np.size(charge.old_positions) == 0:
             return
@@ -197,174 +176,71 @@ class Field_Area():
         self.E *= 0
         
         for old_index, old_position in enumerate(charge.old_positions):
+            # if old_index != 10:
+            #     continue
             light_travel_distance = charge.light_travel_distance[old_index]
-            min_range_x = self.index_of_x_position(old_position[0] - 2*light_travel_distance)
-            max_range_x = self.index_of_x_position(old_position[0] + 2*light_travel_distance)
-            min_range_y = self.index_of_y_position(old_position[1] - 2*light_travel_distance)
-            max_range_y = self.index_of_y_position(old_position[1] + 2*light_travel_distance)
 
-            position = charge.position[np.newaxis,np.newaxis,:]
+            # start_time = time.time()
+            min_range_x = self.index_of_x_position(old_position[0] - 1.5*light_travel_distance)
+            max_range_x = self.index_of_x_position(old_position[0] + 1.5*light_travel_distance)
+            min_range_y = self.index_of_y_position(old_position[1] - 1.5*light_travel_distance)
+            max_range_y = self.index_of_y_position(old_position[1] + 1.5*light_travel_distance)
 
-            r_q_part = self.position[min_range_x:max_range_x, min_range_y:max_range_y] # n x n x 3
-            r_q_abs_part = ne.evaluate('sum((r_q_part-position)**2, axis=2)') # n x n 
+            old_position = old_position[np.newaxis,np.newaxis,:] # 1 x 1 x 3
+
+            r_q_part = ne.evaluate('pos - old_position', global_dict={'pos':self.position[min_range_x:max_range_x, min_range_y:max_range_y]}) # n x n x 3
+            
+            r_q_abs_part_1 = ne.evaluate('sum((r_q_part)**2, axis=2)') # n x n 
+
+            r_q_abs_part = ne.evaluate('sqrt(r_q_abs_part_1)')
 
             beta = (charge.old_velocities[old_index] / self.SPEED_OF_LIGHT)[np.newaxis, :] #  1 x 3
             beta_point = (charge.old_accelerations[old_index] / self.SPEED_OF_LIGHT)[np.newaxis, :]  # 1 x 3
 
             relevant = np.where((r_q_abs_part <= light_travel_distance) & (r_q_abs_part > light_travel_distance - self.SPEED_OF_LIGHT * self.dt)) # m elements
 
+            # print(relevant[0].size)
+
             if relevant[0].size == 0:
                 continue
-
+            
             r_q = r_q_part[relevant] # m x 3
             r_q_abs = (r_q_abs_part[relevant])[:,np.newaxis] # m x 1
-            e_q = r_q / r_q_abs # m x 3
+            e_q = ne.evaluate('r_q / r_q_abs') # m x 3
 
-            beta_squared = (ne.evaluate('sum(beta*beta, axis=1)'))[:,np.newaxis] # 1 x 1 
+            beta_squared = (ne.evaluate('sum(beta*beta, axis=1)')) # 1 
             e_q_dot_beta = (ne.evaluate('sum(e_q * beta, axis=1)'))[:,np.newaxis] # m x 1
             e_q_dot_beta_point = (ne.evaluate('sum(e_q * beta_point, axis=1)'))[:,np.newaxis] # n x 1
             e_q_minus_beta = ne.evaluate('e_q - beta') # m x 3
 
-            speed_of_light = self.SPEED_OF_LIGHT
-
-            E = ne.evaluate('(e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs/speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3)')
+            E = ne.evaluate('(e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs*speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3)', global_dict={'speed_of_light':self.SPEED_OF_LIGHT})
             # m x 3
-            
 
             self.E[min_range_x:max_range_x, min_range_y:max_range_y][relevant] = E
 
+            # end_time = time.time()
+            # print(f'calc took {(end_time - start_time)*1000:.4f} μs')
+
         return
 
-        r_q = np.tile(self.position, (len(charge.old_positions),1,1,1)) - charge.old_positions[:,np.newaxis,np.newaxis,:]
-
-        r_q_abs = np.linalg.norm(r_q, axis=-1)
-
-        e_q = r_q / r_q_abs[:,:,:,np.newaxis]
-
-        beta = (charge.old_velocities / self.SPEED_OF_LIGHT)[:,np.newaxis,np.newaxis,:]
-        beta_point = (charge.old_accelerations / self.SPEED_OF_LIGHT)[:,np.newaxis,np.newaxis,:]
-
-        e_q_minus_beta = e_q - beta
-        e_q_dot_beta = np.sum(e_q * beta, axis=-1)
-        e_q_dot_beta_point = np.sum(e_q * beta_point, axis=-1)
-        beta_squared = np.sum(beta*beta, axis=-1)
-
-        # print(e_q)
-
-        # print('heere')
-        # print(beta_point * (1 - e_q_dot_beta))
-
-        # print(e_q * beta)
-        # print(e_q_minus_beta)
-
-
-        relevant_points = np.where((r_q_abs <= light_travel_distance[:, np.newaxis, np.newaxis]) & (r_q_abs > light_travel_distance[:, np.newaxis, np.newaxis] -self.SPEED_OF_LIGHT * self.dt))
-
-        # where_rel = np.where(relevant_points)
-        # print(relevant_points)
-        # print(where_rel)
-        # print(where_rel[0])
-        # print(r_q_abs[relevant_points])
-        # print(where_rel[0])
-        # print(r_q_abs[where_rel[0], where_rel[1]])
-        # print(beta[relevant_points])
-
-        beta_thing_pow_3 =  ((1 - e_q_dot_beta[relevant_points])**(-3))[:,np.newaxis]
-        abc =  e_q_minus_beta[relevant_points]
-        c = (1 - beta_squared[relevant_points[0]])[:,:,0]
-        d = (r_q_abs[relevant_points]**2 )[:,np.newaxis]
-        e = e_q_dot_beta_point[relevant_points][:,np.newaxis]
-        f = beta_point[relevant_points[0]][:,0,0,:]
-        h = (1-e_q_dot_beta[relevant_points])[:,np.newaxis]
-        g = (r_q_abs[relevant_points])[:,np.newaxis]
-
-        start_time = time.time()
-        E = charge.charge *(beta_thing_pow_3 * abc * c / d + ((abc * e) - (f * h)) / g  / self.SPEED_OF_LIGHT)
-
-        end_time = time.time()
-        print(f'calc r_q took {(end_time - start_time)*1000:.4f} μs')
-        
-        # print(self.E[relevant_points[1:]])
-
-        self.E = np.zeros_like(self.E)
-        self.E[relevant_points[1:]] = E
-        # self.E[relevant_points] = charge.charge * (1 - e_q_dot_beta[relevant_points])**(-3) * ( (e_q_minus_beta[relevant_points]) * (1 - beta**2) / r_q_abs[relevant_points]**2 + (e_q_minus_beta[relevant_points] * e_q_dot_beta_point[relevant_points] - beta_point * (1-e_q_dot_beta[relevant_points])) / r_q_abs[relevant_points] / self.SPEED_OF_LIGHT )
-
-        # print(light_travel_distance)
-        # print(r_q_abs < light_travel_distance[:, np.newaxis, np.newaxis] * 100)
-        # print(r_q_abs[np.where(r_q_abs < light_travel_distance[:, np.newaxis, np.newaxis] * 100)])
-    
 
     def set_test_e_field(self, charge, charge_pos):
         vec_to_q = self.position - charge_pos
-        self.E = charge * vectorfield_scalarfield_product(vec_to_q, 1 / np.linalg.norm(vec_to_q, axis=2)**2)
+        self.E = charge * vec_to_q, 1 / (np.linalg.norm(vec_to_q, axis=2)**2)[:,:,np.newaxis]
 
 
-    def E_field_in_color(self, color_positive=RED, color_negative=BLUE, saturation_point=1, x_range='full', y_range='full'):
-        color_field = np.zeros(self.E.shape, dtype=np.uint8)
-        E_field = self.E / saturation_point
-        E_field_norm = np.linalg.norm(E_field, axis=2)
+    def E_field_in_color(self, saturation_point=1):
+        E_field_norm = ne.evaluate('sum(E_field**2, axis=2)', global_dict={'E_field':self.E})
 
-        E_field_to_big = np.where(E_field_norm >= 1)
-        rest = np.where(E_field_norm < 1)
+        E_field_color = ne.evaluate('tanh(E_field_norm**(0.5) / saturation_point)')
 
-        color_field[E_field_to_big] = BLUE
-        color_field[rest] = (np.tile(BLUE, (E_field_norm[rest].shape[0], 1)) * E_field_norm[rest][:,np.newaxis]).round()
-        
+        # E_field_color = sp.ndimage.gaussian_filter(E_field_color, 2)
+        E_field_color = (cv2.GaussianBlur(E_field_color, (45, 45),0))[:,:,np.newaxis]
 
-        color_field = np.tile(BLUE, (*E_field_norm.shape, 1)) * np.tanh(E_field_norm)[:,:,np.newaxis]
+        color_field = ne.evaluate('color_field*E_field_color', global_dict={'color_field':self.color_field})
 
         return color_field
 
-        # print(np.where(E_field >= 1))
-
-        # a = np.array([[1,0,0,1],[0,0,1,2]])
-        # print((a>1) &( a<=0))
-        # print([*a.shape, 15])
-
-        # color_field[E_field_norm >= 1] = color_positive
-        # color_field[E_field_norm <= -1] = color_negative
-
-        # small_positive = (E_field_norm < 1) & (E_field_norm >=0)
-        # small_E_positive = E_field_norm[np.where(small_positive)]
-        # color_field[small_positive] = (small_E_positive.reshape(len(small_E_positive), 1) @ np.array(color_positive).reshape(1,3)).round()
-        
-        # small_negative = (E_field_norm > -1) & (E_field_norm < 0)
-        # small_E_negative = np.abs(E_field_norm[np.where(small_negative)])
-        # color_field[small_negative] = (small_E_negative.reshape(len(small_E_negative), 1) @ np.array(color_negative).reshape(1,3)).round()
-
-        # return color_field
-    
-
-
-# a = np.linspace(0,10,6)
-# b = np.linspace(0,10,5)
-
-# c = np.tile(a, (5,1))
-# d = np.tile(b, (6,1)).T
-
-# e = np.stack((c,d,np.zeros_like(c)), axis=-1)
-
-# f = np.array([[1,2,3], [1,1,1]])
-# h = np.array([1,2,3])
-
-# print(np.tile(f, (2, 1,1)))
-
-# print(c)
-# print(c[1:4,2])
-# # print(d)
-# # print()
-# print(e)
-# print('rntrn')
-# print(e[1:5,1:4].reshape(-1, 3))
-# print('here')
-# print(vector_scalarfield_product(f, c))
-    
-
-# print('here')
-# print(vector_dot_product(e, e))
-
-# print(b.shape)
 
 if __name__ == '__main__':
 
@@ -372,40 +248,7 @@ if __name__ == '__main__':
 
     test_charge = Space.add_charge()
 
-
-    # a = np.random.rand(20*600*600*3)
-    # b = np.random.rand(20*600*600*3)
-
-    # c = np.random.rand(20*600*600*3)
-    # d = np.random.rand(20*600*600*3)
-
-    # def multiply_chunk(chunk):
-    #     return chunk[0] * chunk[1]
-
-    # array1_chunks = np.array_split(a, 4)
-    # array2_chunks = np.array_split(b, 4)
-
-    # print(np.tile(np.array([1,2,3]), (5,1)))
-
-
-    # start_time = time.time()
-    # for _ in range(10):
-        # with Pool(processes=4) as pool:
-        #     result_chunks = pool.map(multiply_chunk, zip(array1_chunks, array2_chunks))
-
-        # result = np.concatenate(result_chunks)
-# 
-        # c = ne.evaluate('a*b/a + c**2/d + a*b/a + c**2/d')
-        # r = a*b/a + c**2/d + a*b/a + c**2/d
-        # r = np.sum(a*b, axis=3)
-        # c = ne.evaluate('sum(a*a, axis=3) + sum(a*a, axis=3)')
-        # r = np.multiply(c,d, out=c)
-        # c = da.multiply(a,b)
-    # end_time = time.time()
-    # print(f'calc r_q took {(end_time - start_time)*1000:.4f} μs')
-        
-
-    for i in range(6):
+    for i in range(2):
         print(f'{i+1}. iteration')
         test_charge.set_update(Space.dt, np.array([0,np.sin(i),0]))
         Space.calculate_e_field(test_charge)
