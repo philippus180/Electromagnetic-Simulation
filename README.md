@@ -20,6 +20,7 @@ python graphics_pygame.py
 The little dot represents a charge. It causes an electromagnetic field around it that is shown in blue color. The brightness of the color represents the magnitude of the electric field. The brighter the color, the stronger the electric field. The screen only shows the x-y-plane, but the field is calculated as 3d-vector. To see the direction of the field press v and a grid of little lines gets drawn on the screen. Every line points in the direction of the x- and y-components of the electric field at that point. Drawing the vectors slows down the simulation.
 
 One can move around the charge using the arrow keys and suddenly there are electromagnetic waves appearing when the charge accelerates or slows down. After pressing the space bar, the charge will follow the position of the mouse cursor. This will lead to weird behavior of the field, because the cursor can move around faster than the speed of light. But it looks nice.
+
 To enjoy and study the EM-waves there are some exemplary motions implemented. First up is simple harmonic motion along each axis. Then there is a circular movement, where the charge orbits around the origin. Feel free to change the frequency and watch the effects on the waves.
 
 |Key|Action|
