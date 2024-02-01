@@ -159,8 +159,53 @@ class Field_Area():
     def E_at_position(self, position):
         return self.E[self.index_of_position(position)]
     
+    def calculate_e_field_numpy(self, charge):
+        if np.size(charge.old_positions) == 0:
+            return
 
-    def calculate_e_field(self, charge):
+        self.E *= 0
+        
+        for old_index, old_position in enumerate(charge.old_positions):
+            light_travel_distance = charge.light_travel_distance[old_index]
+
+            min_range_x = self.index_of_x_position(old_position[0] - 1.5*light_travel_distance)
+            max_range_x = self.index_of_x_position(old_position[0] + 1.5*light_travel_distance)
+            min_range_y = self.index_of_y_position(old_position[1] - 1.5*light_travel_distance)
+            max_range_y = self.index_of_y_position(old_position[1] + 1.5*light_travel_distance)
+
+            old_position = old_position[np.newaxis,np.newaxis,:] # 1 x 1 x 3
+
+            r_q_part = self.position[min_range_x:max_range_x, min_range_y:max_range_y] - old_position # n x n x 3
+            
+            r_q_abs_part_1 = np.sum((r_q_part)**2, axis=2) # n x n 
+
+            r_q_abs_part = np.sqrt(r_q_abs_part_1)
+
+            beta = (charge.old_velocities[old_index] / self.speed_of_light)[np.newaxis, :] #  1 x 3
+            beta_point = (charge.old_accelerations[old_index] / self.speed_of_light)[np.newaxis, :]  # 1 x 3
+
+            relevant = np.where((r_q_abs_part <= light_travel_distance) & (r_q_abs_part > light_travel_distance - self.speed_of_light * self.dt)) # m elements
+
+            if relevant[0].size == 0:
+                continue
+            
+            r_q = r_q_part[relevant] # m x 3
+            r_q_abs = (r_q_abs_part[relevant])[:,np.newaxis] # m x 1
+            e_q = r_q / r_q_abs # m x 3
+
+            beta_squared = np.sum(beta*beta, axis=1) # 1 
+            e_q_dot_beta = (np.sum(e_q * beta, axis=1))[:,np.newaxis] # m x 1
+            e_q_dot_beta_point = (np.sum(e_q * beta_point, axis=1))[:,np.newaxis] # n x 1
+            e_q_minus_beta = e_q - beta # m x 3
+
+            E = (e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs*self.speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3)
+            # m x 3
+
+            self.E[min_range_x:max_range_x, min_range_y:max_range_y][relevant] = charge.charge * E
+
+        return
+
+    def calculate_e_field_numexpr(self, charge):
         if np.size(charge.old_positions) == 0:
             return
 

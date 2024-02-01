@@ -7,7 +7,7 @@ from maxwell_calculation import Field_Area
 
 
 WIDTH, HEIGHT = (300, 300)
-FPS = 6
+FPS = 10
 
 dt = 0.05
 speed_of_light = 10
@@ -186,13 +186,13 @@ while running:
 
     start_time = time.time()
     # Space.set_test_e_field(mouse_charge.charge, mouse_charge.position)
-    Space.calculate_e_field(mouse_charge)
+    Space.calculate_e_field_numpy(mouse_charge)
     electric_field_colors = Space.E_field_in_color(saturation_point=0.5)
 
     pygame.surfarray.blit_array(electric_field_surface, electric_field_colors)
 
     end_time = time.time()
-    print(f'Calculate E-field took {(end_time - start_time)*1000:.3g} μs')
+    print(f'Calculate E-field took {(end_time - start_time)*1000:.3g} ms')
 
     # Fill the screen with black
     screen.fill(black)
@@ -215,7 +215,7 @@ while running:
             pygame.draw.line(screen, white, start, end, width=1)
             
         end_time = time.time()
-        print(f'Drawing vectorfield took {(end_time - start_time)*1000:.3g} μs')
+        print(f'Drawing vectorfield took {(end_time - start_time)*1000:.3g} ms')
 
 
     # Update the display
