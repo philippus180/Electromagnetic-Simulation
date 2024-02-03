@@ -6,16 +6,19 @@ import pygame
 from maxwell_calculation import Field_Area
 
 
-WIDTH, HEIGHT = (300, 300)
-FPS = 10
+WIDTH, HEIGHT = (900, 900)
+FPS = 50
 
-dt = 0.05
+field_res = 300
+scale_factor = 3
+
+dt = 1/FPS
 speed_of_light = 10
 
 frequency = 20
 amplitude = 0.2
 
-Space = Field_Area(WIDTH, HEIGHT,(-10, 10), (-10, 10), dt, speed_of_light)
+Space = Field_Area(field_res, field_res,(-10, 10), (-10, 10), dt, speed_of_light)
 
 mouse_charge = Space.add_charge(charge=1)
 # test_charge = Space.add_charge(charge=20, init_position = np.array([1,7.,0]))
@@ -35,7 +38,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Maxwells Simulation")
 clock = pygame.time.Clock()
 
-electric_field_surface = pygame.Surface((WIDTH, HEIGHT))
+electric_field_surface = pygame.Surface((field_res*scale_factor, field_res*scale_factor))
 
 
 draw_field_vectors = False
@@ -187,12 +190,12 @@ while running:
     start_time = time.time()
     # Space.set_test_e_field(mouse_charge.charge, mouse_charge.position)
     Space.calculate_e_field_numpy(mouse_charge)
-    electric_field_colors = Space.E_field_in_color(saturation_point=0.5)
+    electric_field_colors = Space.E_field_in_color_numpy(saturation_point=0.5, scale_factor=scale_factor)
 
     pygame.surfarray.blit_array(electric_field_surface, electric_field_colors)
 
     end_time = time.time()
-    print(f'Calculate E-field took {(end_time - start_time)*1000:.3g} ms')
+    # print(f'Calculate E-field took {(end_time - start_time)*1000:.3g} ms')
 
     # Fill the screen with black
     screen.fill(black)
@@ -224,6 +227,7 @@ while running:
 
     # Cap the frame rate to the desired FPS
     clock.tick(FPS)
+    print(clock.get_fps())
 
 
 # Quit Pygame
