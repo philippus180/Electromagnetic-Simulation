@@ -12,13 +12,13 @@ FPS = 50
 field_res = 300
 scale_factor = 3
 
-dt = 1/FPS
-speed_of_light = 10
+dt = 0.5
+speed_of_light = 1
 
-frequency = 20
-amplitude = 0.2
+frequency = 2
+amplitude = 0.1
 
-Space = Field_Area(field_res, field_res,(-10, 10), (-10, 10), dt, speed_of_light)
+Space = Field_Area(field_res, field_res,(-20, 20), (-20, 20), dt, speed_of_light)
 
 mouse_charge = Space.add_charge(charge=1)
 # test_charge = Space.add_charge(charge=20, init_position = np.array([1,7.,0]))
@@ -27,7 +27,7 @@ mouse_charge = Space.add_charge(charge=1)
 black = (0, 0, 0)
 white = (255, 255, 255)
 green = (21, 176, 26)
-red = (255, 0, 0)
+red = (200.515, 0, 0)
 blue = (0, 0, 255)
 
 
@@ -56,7 +56,7 @@ y_pressed = False
 z_pressed = False
 c_pressed = False
 
-charge_speed = 0.1 # c
+charge_speed = 0.1 * Space.dx # c
 
 t = 0
 # Main game loop

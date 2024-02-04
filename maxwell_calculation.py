@@ -25,7 +25,7 @@ def add_vector_to_list(list, vector):
     return np.concatenate((list, vector[np.newaxis,:]))
 
 class Charge():
-    max_length_old = 40
+    max_length_old = 100
 
     def __init__(self, field: 'Field_Area', charge=1, mass=1, init_position=np.zeros(3), init_velocity=np.zeros(3)) -> None:
         self.charge = charge
@@ -79,7 +79,8 @@ class Field_Area():
         self.E_norm = np.zeros((x_resolution, y_resolution))
         self.B = np.zeros((x_resolution, y_resolution, 3))
 
-        self.x,self.y = np.indices((x_resolution, y_resolution))
+        self.x, self.y = np.indices((x_resolution, y_resolution))
+        self.center = np.array([x_resolution//2, y_resolution//2])
 
         self.speed_of_light = c
         self.dt = dt
@@ -95,6 +96,7 @@ class Field_Area():
         self.y_width = self.y_max - self.y_min
 
         self.pixel_size = (self.x_width / (x_resolution - 1), self.y_width / (y_resolution - 1))
+        self.diagonal = (x_resolution**2 + y_resolution**2)**(0.5)
 
         x = np.linspace(self.x_min, self.x_max, x_resolution)
         y = np.linspace(self.y_min, self.y_max, y_resolution)
@@ -103,6 +105,7 @@ class Field_Area():
         z_grid = np.zeros_like(x_grid)
 
         self.position = np.stack((y_grid, x_grid, z_grid), axis=-1)
+        # self.indices = np.stack(np.indices((x_resolution, y_resolution)), axis=-1)
 
         self.color = np.array((40, 150, 240), dtype=np.uint8)
         self.color_field = np.tile(self.color, (self.x_resolution, self.y_resolution, 1))
@@ -178,31 +181,33 @@ class Field_Area():
     @time_it
     def calculate_e_field_numpy(self, charge):
         for old_index, old_position in enumerate(charge.old_positions):
-
-            start = time.time()
-
             light_travel_distance = charge.light_travel_distance[old_index]
 
             center = self.index_of_position(old_position)
-            outer_radius = light_travel_distance / self.pixel_size[0]
-            inner_radius = (light_travel_distance - self.speed_of_light * self.dt) / self.pixel_size[0]
+            outer_radius = (light_travel_distance / self.pixel_size[0]).astype(np.float32)
+            inner_radius = ((light_travel_distance - self.dx) / self.pixel_size[0] ).astype(np.float32)
 
-            mask = ((self.x - center[0])**2 + (self.y - center[1])**2 >= inner_radius**2) & ((self.x - center[0])**2 + (self.y - center[1])**2 <= outer_radius**2)
+            if (self.center[0] - center[0])**2 + (self.center[1] - center[1])**2 + self.diagonal/2 < inner_radius:
+                continue
+
+            index_distance = (self.x - center[0])**2 + (self.y - center[1])**2
+            mask = (index_distance>= inner_radius**2) & (index_distance <= outer_radius**2)
 
             if old_index == 0:
-                self.E[(self.x - center[0])**2 + (self.y - center[1])**2 > outer_radius**2] = 0
+                outside = (self.x - center[0])**2 + (self.y - center[1])**2 > outer_radius**2
+                self.E[outside] = np.zeros(3)
+                self.E_norm[outside] = 0
 
             beta = (charge.old_velocities[old_index] / self.speed_of_light)[np.newaxis, :] #  1 x 3
             beta_point = (charge.old_accelerations[old_index] / self.speed_of_light)[np.newaxis, :]  # 1 x 3
 
-            
             r_q = self.position[mask] - old_position[np.newaxis, :] # m x 3
-            r_q_abs = np.sqrt(np.sum(r_q**2, axis=1))[:,np.newaxis] # m x 1
+            r_q_abs = np.sqrt(np.sum(r_q**2, axis=1), dtype=np.float32)[:,np.newaxis] # m x 1
             e_q = r_q / r_q_abs # m x 3
 
-            beta_squared = np.sum(beta*beta, axis=1) # 1 
-            e_q_dot_beta = (np.sum(e_q * beta, axis=1))[:,np.newaxis] # m x 1
-            e_q_dot_beta_point = (np.sum(e_q * beta_point, axis=1))[:,np.newaxis] # n x 1
+            beta_squared = np.sum(beta*beta, axis=1, dtype=np.float32) # 1 
+            e_q_dot_beta = (np.sum(e_q * beta, axis=1, dtype=np.float32))[:,np.newaxis] # m x 1
+            e_q_dot_beta_point = (np.sum(e_q * beta_point, axis=1, dtype=np.float32))[:,np.newaxis] # n x 1
             e_q_minus_beta = e_q - beta # m x 3
 
             E = charge.charge * (e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs*self.speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3)
@@ -210,9 +215,6 @@ class Field_Area():
 
             self.E[mask] = E
             self.E_norm[mask] = np.sqrt(np.sum(E**2, axis=1))
-
-            print(f'took {(time.time() - start)*1000:.4g} ms')
-
         return
 
     @time_it
@@ -269,16 +271,15 @@ class Field_Area():
 
     @time_it
     def E_field_in_color_numpy(self, saturation_point=1, scale_factor=1):
-        # E_field_norm = np.sum(self.E**2, axis=2)
-
-        E_field_color = np.tanh(self.E_norm / saturation_point)
+        E_field_color = np.tanh(self.E_norm / saturation_point, dtype=np.float32)
 
         E_field_color = scipy.ndimage.gaussian_filter(E_field_color, 2)[:,:,np.newaxis]
         # E_field_color = (cv2.GaussianBlur(E_field_color, (9, 9),0))[:,:,np.newaxis]
 
-        color_field = self.color_field*E_field_color
+        color_field = (self.color_field*E_field_color).astype(np.uint8)
 
         color_field = np.repeat(np.repeat(color_field, scale_factor, axis=0), scale_factor, axis=1)
+        # print(color_field)
 
         return color_field
 
@@ -301,19 +302,18 @@ class Field_Area():
 
 if __name__ == '__main__':
 
-
-    a = np.array([[1,2,3],[4,5,6]])
-    b = np.repeat(a, 5, axis=1)
-
+    a = np.array([[1,2,3],[4,5,6]], dtype=np.float16)
+    b = a / 100000
+    print(a)
     print(b)
 
-    Space = Field_Area(600, 600, (-10, 10), (-10, 10), 0.05, 10)
+    Space = Field_Area(600, 600, (-10, 10), (-10, 10), 0.01, 10)
 
     test_charge = Space.add_charge()
 
-    for i in range(5):
+    for i in range(2):
         print(f'{i+1}. iteration')
         test_charge.set_update(Space.dt, np.array([0,np.sin(i),0]))
         Space.calculate_e_field_numpy(test_charge)
-        Space.E_field_in_color_numpy()
+        Space.E_field_in_color_numpy(scale_factor=3)
 
