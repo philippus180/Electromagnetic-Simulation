@@ -1,7 +1,5 @@
 import time
 
-import cv2
-import numexpr as ne
 import numpy as np
 import scipy
 
@@ -39,7 +37,8 @@ class Charge():
         self.old_velocities = np.tile(init_velocity, (self.max_length_old,1))
         self.old_accelerations = np.tile(self.acceleration, (self.max_length_old,1))
 
-        self.light_travel_distance = np.arange(self.max_length_old, 0, -1) * field.speed_of_light * field.dt
+        self.light_travel_distance = np.arange(self.max_length_old, -1, -1) * field.speed_of_light * field.dt
+        self.old_dt = np.ones(self.max_length_old) * field.dt
 
     def lorentz_force(self):
         return self.charge * (self.field.E_at_position(self.position) )# + np.cross(self.velocity, self.field.B(self.position)))
@@ -57,24 +56,35 @@ class Charge():
         self.position += self.velocity * dt
         self.velocity += self.acceleration * dt
 
-    def set_update(self, dt, pos):
+
+    def set_update(self, dt, pos, vel=None, acc=None):
         self.old_positions = add_vector_to_list(self.old_positions, self.position)
         self.old_velocities = add_vector_to_list(self.old_velocities, self.velocity)
         self.old_accelerations = add_vector_to_list(self.old_accelerations, self.acceleration)
-        if self.old_positions.shape[0] > self.max_length_old:
+        while self.old_positions.shape[0] > self.max_length_old:
             self.old_positions = np.delete(self.old_positions, 0, axis=0)
             self.old_velocities = np.delete(self.old_velocities, 0, axis=0)
             self.old_accelerations = np.delete(self.old_accelerations, 0, axis=0)
+
+        self.light_travel_distance += self.field.dx
+        self.light_travel_distance = np.concatenate((np.delete(self.light_travel_distance, 0), [0]))
+
         old_pos = self.position
         old_vel = self.velocity
         self.position = pos
-        self.velocity = (self.position - old_pos) / dt
-        self.acceleration = (self.velocity - old_vel) / dt
+        if vel is None:
+            self.velocity = (self.position - old_pos) / dt
+        else:
+            self.velocity = vel
+        if acc is None:
+            self.acceleration = (self.velocity - old_vel) / dt
+        else:
+            self.acceleration = acc
 
 
 
 class Field_Area():
-    def __init__(self, x_resolution, y_resolution, x_range, y_range, dt, c) -> None:
+    def __init__(self, x_resolution, y_resolution, pixel_size, dt, c) -> None:
         self.E = np.zeros((x_resolution, y_resolution, 3))
         self.E_norm = np.zeros((x_resolution, y_resolution))
         self.B = np.zeros((x_resolution, y_resolution, 3))
@@ -86,25 +96,28 @@ class Field_Area():
         self.dt = dt
         self.dx = self.dt * self.speed_of_light
 
+        self.pixel_size = pixel_size
+        self.diagonal = (x_resolution**2 + y_resolution**2)**(0.5)
+
         self.x_resolution = x_resolution
         self.y_resolution = y_resolution
 
-        self.x_min, self.x_max = x_range
-        self.y_min, self.y_max = y_range
+        self.x_width = self.pixel_size*(x_resolution - 1)
+        self.y_width = self.pixel_size*(y_resolution - 1)
 
-        self.x_width = self.x_max - self.x_min
-        self.y_width = self.y_max - self.y_min
+        self.x_max = self.pixel_size*(x_resolution - 1) / 2
+        self.x_min = -self.x_max
+        self.y_max = self.pixel_size*(y_resolution - 1) / 2
+        self.y_min = -self.y_max
 
-        self.pixel_size = (self.x_width / (x_resolution - 1), self.y_width / (y_resolution - 1))
-        self.diagonal = (x_resolution**2 + y_resolution**2)**(0.5)
 
         x = np.linspace(self.x_min, self.x_max, x_resolution)
         y = np.linspace(self.y_min, self.y_max, y_resolution)
-        x_grid = np.tile(x, (y_resolution, 1))
-        y_grid = np.tile(y, (x_resolution, 1)).T
+        x_grid = np.tile(x, (y_resolution, 1)).T
+        y_grid = np.tile(y, (x_resolution, 1))
         z_grid = np.zeros_like(x_grid)
 
-        self.position = np.stack((y_grid, x_grid, z_grid), axis=-1)
+        self.position = np.stack((x_grid, y_grid, z_grid), axis=-1)
         # self.indices = np.stack(np.indices((x_resolution, y_resolution)), axis=-1)
 
         self.color = np.array((40, 150, 240), dtype=np.uint8)
@@ -121,6 +134,10 @@ class Field_Area():
         self.color = np.array(rgb_color, dtype=np.uint8)
         self.color_field = np.tile(self.color, (self.x_resolution, self.y_resolution, 1))
         return
+    
+    def set_dt(self, new_dt):
+        self.dt = new_dt
+        self.dx = self.speed_of_light*self.dt
 
 
     def position_at_index(self, index):
@@ -128,35 +145,35 @@ class Field_Area():
     
 
     def index_of_position(self, position):
-        x_index = round((position[0] - self.x_min) / self.pixel_size[0])
-        y_index = round((position[1] - self.y_min) / self.pixel_size[1])
+        x_index = round((position[0] - self.x_min) / self.pixel_size)
+        y_index = round((position[1] - self.y_min) / self.pixel_size)
 
         if x_index > 0 and x_index < self.x_resolution and y_index > 0 and y_index < self.y_resolution:
-            return x_index, y_index
+            return np.array([x_index, y_index])
         
         elif x_index < 0 and y_index < 0:
-            return 0,0
+            return np.array([0, 0])
         elif x_index >= self.x_resolution and y_index >= self.y_resolution:
-            return self.x_resolution -1, self.y_resolution-1
+            return np.array([self.x_resolution -1, self.y_resolution-1])
         elif x_index >= self.x_resolution and y_index < 0:
-            return self.x_resolution-1, 0
+            return np.array([self.x_resolution-1, 0])
         elif x_index < 0 and y_index >= self.y_resolution:
-            return 0, self.y_resolution-1
+            return np.array([0, self.y_resolution-1])
 
         
         elif x_index < 0:
-            return 0, y_index
+            return np.array([0, y_index])
         elif x_index >= self.x_resolution:
-            return self.y_resolution-1, y_index
+            return np.array([self.y_resolution-1, y_index])
         elif y_index < 0: 
-            return x_index, 0
+            return np.array([x_index, 0])
         elif y_index >= self.y_resolution:
-            return x_index, self.y_resolution-1
+            return np.array([x_index, self.y_resolution-1])
 
-        return 0,0
+        return np.array([0,0])
 
     def index_of_x_position(self, x_value):
-        x_index = round((x_value - self.x_min) / self.pixel_size[0])
+        x_index = round((x_value - self.x_min) / self.pixel_size)
 
         if x_index < 0:
             return 0
@@ -165,7 +182,7 @@ class Field_Area():
         return x_index
     
     def index_of_y_position(self, y_value):
-        y_index = round((y_value - self.y_min) / self.pixel_size[1])
+        y_index = round((y_value - self.y_min) / self.pixel_size)
 
         if y_index < 0:
             return 0
@@ -175,17 +192,15 @@ class Field_Area():
         
     
     def E_at_position(self, position):
-        return self.E[self.index_of_position(position)]
+        return self.E[tuple(self.index_of_position(position))]
     
 
-    @time_it
+    # @time_it
     def calculate_e_field_numpy(self, charge):
         for old_index, old_position in enumerate(charge.old_positions):
-            light_travel_distance = charge.light_travel_distance[old_index]
-
             center = self.index_of_position(old_position)
-            outer_radius = (light_travel_distance / self.pixel_size[0]).astype(np.float32)
-            inner_radius = ((light_travel_distance - self.dx) / self.pixel_size[0] ).astype(np.float32)
+            outer_radius = (charge.light_travel_distance[old_index] / self.pixel_size).astype(np.float32)
+            inner_radius = (charge.light_travel_distance[old_index+1] / self.pixel_size).astype(np.float32)
 
             if (self.center[0] - center[0])**2 + (self.center[1] - center[1])**2 + self.diagonal/2 < inner_radius:
                 continue
@@ -217,59 +232,12 @@ class Field_Area():
             self.E_norm[mask] = np.sqrt(np.sum(E**2, axis=1))
         return
 
-    @time_it
-    def calculate_e_field_numexpr(self, charge):
-        if np.size(charge.old_positions) == 0:
-            return
-
-        self.E *= 0
-        
-        for old_index, old_position in enumerate(charge.old_positions):
-            light_travel_distance = charge.light_travel_distance[old_index]
-
-            min_range_x = self.index_of_x_position(old_position[0] - 1.5*light_travel_distance)
-            max_range_x = self.index_of_x_position(old_position[0] + 1.5*light_travel_distance)
-            min_range_y = self.index_of_y_position(old_position[1] - 1.5*light_travel_distance)
-            max_range_y = self.index_of_y_position(old_position[1] + 1.5*light_travel_distance)
-
-            old_position = old_position[np.newaxis,np.newaxis,:] # 1 x 1 x 3
-
-            r_q_part = ne.evaluate('pos - old_position', global_dict={'pos':self.position[min_range_x:max_range_x, min_range_y:max_range_y]}) # n x n x 3
-            
-            r_q_abs_part_1 = ne.evaluate('sum((r_q_part)**2, axis=2)') # n x n 
-
-            r_q_abs_part = ne.evaluate('sqrt(r_q_abs_part_1)')
-
-            beta = (charge.old_velocities[old_index] / self.speed_of_light)[np.newaxis, :] #  1 x 3
-            beta_point = (charge.old_accelerations[old_index] / self.speed_of_light)[np.newaxis, :]  # 1 x 3
-
-            relevant = np.where((r_q_abs_part <= light_travel_distance) & (r_q_abs_part > light_travel_distance - self.speed_of_light * self.dt)) # m elements
-
-            if relevant[0].size == 0:
-                continue
-            
-            r_q = r_q_part[relevant] # m x 3
-            r_q_abs = (r_q_abs_part[relevant])[:,np.newaxis] # m x 1
-            e_q = ne.evaluate('r_q / r_q_abs') # m x 3
-
-            beta_squared = (ne.evaluate('sum(beta*beta, axis=1)')) # 1 
-            e_q_dot_beta = (ne.evaluate('sum(e_q * beta, axis=1)'))[:,np.newaxis] # m x 1
-            e_q_dot_beta_point = (ne.evaluate('sum(e_q * beta_point, axis=1)'))[:,np.newaxis] # n x 1
-            e_q_minus_beta = ne.evaluate('e_q - beta') # m x 3
-
-            E = ne.evaluate('(e_q_minus_beta * (1 - beta_squared) * r_q_abs**(-2) + (e_q_minus_beta*e_q_dot_beta_point - beta_point*(1-e_q_dot_beta)) * (r_q_abs*speed_of_light)**(-1)) * (1 - e_q_dot_beta)**(-3) ', global_dict={'speed_of_light':self.speed_of_light})
-            # m x 3
-
-            self.E[min_range_x:max_range_x, min_range_y:max_range_y][relevant] = ne.evaluate('charge * E', local_dict={'E':E,'charge':charge.charge})
-
-        return
-
 
     def set_test_e_field(self, charge, charge_pos):
         vec_to_q = self.position - charge_pos
         self.E = charge * vec_to_q, 1 / (np.linalg.norm(vec_to_q, axis=2)**2)[:,:,np.newaxis]
 
-    @time_it
+    # @time_it
     def E_field_in_color_numpy(self, saturation_point=1, scale_factor=1):
         E_field_color = np.tanh(self.E_norm / saturation_point, dtype=np.float32)
 
@@ -283,23 +251,6 @@ class Field_Area():
 
         return color_field
 
-
-    @time_it
-    def E_field_in_color_numexpr(self, saturation_point=1, scale_factor=1):
-        E_field_norm = ne.evaluate('sum(E_field**2, axis=2)', global_dict={'E_field':self.E})
-
-        E_field_color = ne.evaluate('tanh(E_field_norm**(0.5) / saturation_point)')
-
-        # E_field_color = scipy.ndimage.gaussian_filter(E_field_color, 2)
-        E_field_color = (cv2.GaussianBlur(E_field_color, (45, 45),0))[:,:,np.newaxis]
-
-        color_field = ne.evaluate('color_field*E_field_color', global_dict={'color_field':self.color_field})
-
-        color_field = np.repeat(np.repeat(color_field, scale_factor, axis=0), scale_factor, axis=1)
-
-        return color_field
-
-
 if __name__ == '__main__':
 
     a = np.array([[1,2,3],[4,5,6]], dtype=np.float16)
@@ -307,7 +258,7 @@ if __name__ == '__main__':
     print(a)
     print(b)
 
-    Space = Field_Area(600, 600, (-10, 10), (-10, 10), 0.01, 10)
+    Space = Field_Area(900//2, 600//2, 0.15, 0.01, 10)
 
     test_charge = Space.add_charge()
 
