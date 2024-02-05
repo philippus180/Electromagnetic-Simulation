@@ -22,8 +22,9 @@ RED = (255,0,0)
 def add_vector_to_list(list, vector):
     return np.concatenate((list, vector[np.newaxis,:]))
 
+
 class Charge():
-    max_length_old = 100
+    max_length_old = 80
 
     def __init__(self, field: 'Field_Area', charge=1, mass=1, init_position=np.zeros(3), init_velocity=np.zeros(3)) -> None:
         self.charge = charge
@@ -39,6 +40,7 @@ class Charge():
 
         self.light_travel_distance = np.arange(self.max_length_old, -1, -1) * field.speed_of_light * field.dt
         self.old_dt = np.ones(self.max_length_old) * field.dt
+
 
     def lorentz_force(self):
         return self.charge * (self.field.E_at_position(self.position) )# + np.cross(self.velocity, self.field.B(self.position)))
@@ -140,35 +142,38 @@ class Field_Area():
         self.dx = self.speed_of_light*self.dt
 
 
-    def position_at_index(self, index):
-        return self.position[index]
+    def position_at_index(self, index, scale_factor):
+        return np.array([index[0] * self.pixel_size / scale_factor + self.x_min, index[1] * self.pixel_size / scale_factor + self.y_min, 0])
     
 
-    def index_of_position(self, position):
-        x_index = round((position[0] - self.x_min) / self.pixel_size)
-        y_index = round((position[1] - self.y_min) / self.pixel_size)
+    def index_of_position(self, position, scale_factor=1):
+        x_index = round((position[0] - self.x_min) / self.pixel_size * scale_factor)
+        y_index = round((position[1] - self.y_min) / self.pixel_size * scale_factor)
 
-        if x_index > 0 and x_index < self.x_resolution and y_index > 0 and y_index < self.y_resolution:
+        scaled_x_res = self.x_resolution * scale_factor
+        scaled_y_res = self.y_resolution * scale_factor
+
+        if x_index > 0 and x_index < scaled_x_res and y_index > 0 and y_index < scaled_y_res:
             return np.array([x_index, y_index])
         
         elif x_index < 0 and y_index < 0:
             return np.array([0, 0])
-        elif x_index >= self.x_resolution and y_index >= self.y_resolution:
-            return np.array([self.x_resolution -1, self.y_resolution-1])
-        elif x_index >= self.x_resolution and y_index < 0:
-            return np.array([self.x_resolution-1, 0])
-        elif x_index < 0 and y_index >= self.y_resolution:
-            return np.array([0, self.y_resolution-1])
+        elif x_index >= scaled_x_res and y_index >= scaled_y_res:
+            return np.array([scaled_x_res -1, scaled_y_res-1])
+        elif x_index >= scaled_x_res and y_index < 0:
+            return np.array([scaled_x_res-1, 0])
+        elif x_index < 0 and y_index >= scaled_y_res:
+            return np.array([0, scaled_y_res-1])
 
         
         elif x_index < 0:
             return np.array([0, y_index])
-        elif x_index >= self.x_resolution:
-            return np.array([self.y_resolution-1, y_index])
+        elif x_index >= scaled_x_res:
+            return np.array([scaled_x_res-1, y_index])
         elif y_index < 0: 
             return np.array([x_index, 0])
-        elif y_index >= self.y_resolution:
-            return np.array([x_index, self.y_resolution-1])
+        elif y_index >= scaled_y_res:
+            return np.array([x_index, scaled_y_res-1])
 
         return np.array([0,0])
 
@@ -237,17 +242,16 @@ class Field_Area():
         vec_to_q = self.position - charge_pos
         self.E = charge * vec_to_q, 1 / (np.linalg.norm(vec_to_q, axis=2)**2)[:,:,np.newaxis]
 
+
     # @time_it
     def E_field_in_color_numpy(self, saturation_point=1, scale_factor=1):
         E_field_color = np.tanh(self.E_norm / saturation_point, dtype=np.float32)
 
         E_field_color = scipy.ndimage.gaussian_filter(E_field_color, 2)[:,:,np.newaxis]
-        # E_field_color = (cv2.GaussianBlur(E_field_color, (9, 9),0))[:,:,np.newaxis]
 
         color_field = (self.color_field*E_field_color).astype(np.uint8)
 
         color_field = np.repeat(np.repeat(color_field, scale_factor, axis=0), scale_factor, axis=1)
-        # print(color_field)
 
         return color_field
 

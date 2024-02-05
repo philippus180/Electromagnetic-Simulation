@@ -8,7 +8,7 @@ from maxwell_calculation import Field_Area
 
 
 WIDTH, HEIGHT = (900, 600)
-FPS = 50
+FPS = 30
 
 if len(sys.argv) > 1:
     WIDTH, HEIGHT = [int(i) for i in sys.argv[1].split('x')]
@@ -28,7 +28,7 @@ amplitude = 0.1
 Space = Field_Area(WIDTH//scale_factor, HEIGHT//scale_factor, pixel_size, dt, speed_of_light)
 
 mouse_charge = Space.add_charge(charge=1)
-# test_charge = Space.add_charge(charge=20, init_position = np.array([1,7.,0]))
+# test_charge = Space.add_charge(charge=-2, init_position = np.array([15,15.,0]))
 
 # Set up colors
 black = (0, 0, 0)
@@ -48,7 +48,7 @@ clock = pygame.time.Clock()
 electric_field_surface = pygame.Surface((x_resolution*scale_factor, y_resolution*scale_factor))
 
 
-draw_field_vectors = False
+draw_field_vectors = True
 mouse_input = False
 
 down_pressed = False
@@ -193,7 +193,7 @@ while running:
     ### UPDATE PHYSICS ###
 
     if mouse_input:
-        mouse_charge.set_update(Space.dt, Space.position_at_index((mouse_x, mouse_y)))
+        mouse_charge.set_update(Space.dt, Space.position_at_index((mouse_x, mouse_y), scale_factor))
     else:
         mouse_charge.set_update(Space.dt, new_charge_pos, new_charge_vel, new_charge_acc)
 
@@ -216,19 +216,19 @@ while running:
 
 
     if mouse_charge.charge == 0:
-        pygame.draw.circle(screen, white, scale_factor*Space.index_of_position(mouse_charge.position), 2)
+        pygame.draw.circle(screen, white, Space.index_of_position(mouse_charge.position, scale_factor), 2)
     elif mouse_charge.charge > 0:
-        pygame.draw.circle(screen, red, scale_factor*Space.index_of_position(mouse_charge.position), 2 * np.ceil(mouse_charge.charge))
+        pygame.draw.circle(screen, red, Space.index_of_position(mouse_charge.position, scale_factor), 2 * np.ceil(mouse_charge.charge))
     elif mouse_charge.charge < 0:
-        pygame.draw.circle(screen, blue, scale_factor*Space.index_of_position(mouse_charge.position), 2 * np.ceil(-mouse_charge.charge))
-    # pygame.draw.circle(screen, green, Space.index_of_position(test_charge.position), 2)
+        pygame.draw.circle(screen, blue, Space.index_of_position(mouse_charge.position, scale_factor), 2 * np.ceil(-mouse_charge.charge))
+    # pygame.draw.circle(screen, green, Space.index_of_position(test_charge.position, scale_factor), 2)
     
 
     if draw_field_vectors:
         start_time = time.time()
-        for pos in Space.position[::10, ::10].reshape(-1, 3):
-            start = scale_factor * Space.index_of_position(pos)
-            end = scale_factor * Space.index_of_position(pos[:2] + Space.E_at_position(pos)[:2] / max(0.05, np.linalg.norm(Space.E_at_position(pos)[:2])))
+        for pos in Space.position[::8, ::8].reshape(-1, 3):
+            start = Space.index_of_position(pos, scale_factor)
+            end = Space.index_of_position(pos[:2] + Space.E_at_position(pos)[:2] / max(0.05, np.linalg.norm(Space.E_at_position(pos)[:2])), scale_factor)
             pygame.draw.line(screen, white, start, end, width=1)
             
         end_time = time.time()
