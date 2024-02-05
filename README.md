@@ -4,10 +4,11 @@ In the simulation your cursor represents a charged particle, that you can move b
 
 
 # Requirements
-You need the following python packages to run the simulation: pygame, numpy. These packages can be installed by running the following commands in a terminal:
+You need the following python packages to run the simulation: pygame, numpy, scipy. These packages can be installed by running the following commands in a terminal:
 ```bash
 pip install pygame
 pip install numpy
+pip install scipy
 ```
 
 To start the simulation please run the file 'graphic_pygame.py':
