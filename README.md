@@ -1,20 +1,18 @@
 # Electromagnetic Simulation
 Inspired by ThreeBlueOneBrown ([link to video](https://www.youtube.com/watch?v=aXRTczANuIs)) I wanted to create a simulation, that visualises the electromagnetic fields caused by moving charges. To calculate the EM-fieds I implemented some form of Maxwells Equations and solved them numerically by tiny changes in time.
-In the simulation your cursor represents a charged particle, that you can move by moving the mouse. It is very nice to see the influences of the movement on the field and especially the resulting EM-waves.
+In the simulation your cursor represents a charged particle, that you can move by moving the mouse. It is very nice to see the influences of the movement on the field and especially the resulting EM-waves. 
 
 
 # Requirements
-You need the following python packages to run the simulation: pygame, numpy, numexpr, cv2. These packages can be installed by running the following commands in a terminal:
+You need the following python packages to run the simulation: pygame, numpy. These packages can be installed by running the following commands in a terminal:
 ```bash
 pip install pygame
 pip install numpy
-pip install numexpr
-pip install opencv-python
 ```
 
-To start the simulation please run the file 'graphics_pygame.py':
+To start the simulation please run the file 'graphic_pygame.py':
 ```bash
-python graphics_pygame.py
+python graphic_pygame.py
 ```
 
 # Features
