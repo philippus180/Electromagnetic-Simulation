@@ -63,7 +63,7 @@ y_pressed = False
 z_pressed = False
 c_pressed = False
 
-charge_speed = 0.1 * Space.dx # c
+charge_speed = 0.2 # c
 
 t = 0
 # Main game loop
