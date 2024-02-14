@@ -7,7 +7,7 @@ import pygame
 from maxwell_calculation import Field_Area
 
 
-WIDTH, HEIGHT = (900, 600)
+WIDTH, HEIGHT = (999, 666)
 FPS = 30
 
 if len(sys.argv) > 1:
