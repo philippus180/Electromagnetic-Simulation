@@ -245,7 +245,7 @@ class Field_Area():
 
     # @time_it
     def E_field_in_color_numpy(self, saturation_point=1, scale_factor=1):
-        E_field_color = np.tanh(self.E_norm / saturation_point, dtype=np.float32)
+        E_field_color = np.tanh(np.sqrt(self.E_norm / saturation_point), dtype=np.float32)
 
         E_field_color = scipy.ndimage.gaussian_filter(E_field_color, 2)[:,:,np.newaxis]
 

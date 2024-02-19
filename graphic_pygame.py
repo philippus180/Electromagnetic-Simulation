@@ -122,6 +122,9 @@ while running:
             elif event.key == pygame.K_9:
                 charge_speed =  0.9
 
+            elif event.key == pygame.K_TAB:
+                charge_speed = 1.2
+
 
             elif event.key == pygame.K_f:
                 frequency += 0.5
@@ -203,7 +206,7 @@ while running:
     start_time = time.time()
     # Space.set_test_e_field(mouse_charge.charge, mouse_charge.position)
     Space.calculate_e_field_numpy(mouse_charge)
-    electric_field_colors = Space.E_field_in_color_numpy(saturation_point=0.5, scale_factor=scale_factor)
+    electric_field_colors = Space.E_field_in_color_numpy(saturation_point=0.2, scale_factor=scale_factor)
 
     pygame.surfarray.blit_array(electric_field_surface, electric_field_colors)
 
